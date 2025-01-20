@@ -1,16 +1,10 @@
-import numpy as np
 import torch
 import torch.nn.functional as F
 import torch.nn as nn
 import math
-import pydiffvg
-from PIL import Image
-import matplotlib.pyplot as plt
-import torch
-import torch.nn as nn
 
 class SimpleCNN(nn.Module):
-    def __init__(self, input_channels=16, output_dim=8):
+    def __init__(self, input_channels=16, output_dim=128):
         super(SimpleCNN, self).__init__()
 
         # 定义卷积层部分
@@ -31,10 +25,13 @@ class SimpleCNN(nn.Module):
         # 展平操作，将卷积层输出展平成向量
         self.flatten = nn.Flatten()
 
-        # self.fc = nn.Linear(64 * 8 * 8, 16*output_dim)  # 64通道，8x8的图像块
-        # 加入 ReLU 限制非负
         self.fc = nn.Sequential(
             nn.Linear(64 * 8 * 8, 16 * output_dim),
+
+        )
+        # 输出坐标点
+        self.fc2 = nn.Sequential(
+            nn.Linear(64 * 8 * 8, 16 * 8),
 
         )
 
@@ -45,9 +42,10 @@ class SimpleCNN(nn.Module):
         x = self.flatten(x)
         # print(x.shape)
         # 通过全连接层
-        x = self.fc(x)
+        x1 = self.fc(x)
+        x2 = self.fc2(x)
 
-        return x
+        return x1, x2
 class GraphConvolution(nn.Module):
     def __init__(self, in_features, out_features, bias=True):
         super(GraphConvolution, self).__init__()

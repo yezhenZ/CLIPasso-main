@@ -8,7 +8,7 @@ from PIL import Image
 import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
-import display_img
+import bezier_renderer
 import sketch_utils as utils
 import torchvision.transforms as transforms
 from torchvision.transforms import functional as F

@@ -3,7 +3,7 @@ import torch
 import torchvision.models as models
 from torch.autograd import Variable
 from scipy.spatial.distance import cdist
-from display_img import diffvgProcess
+from bezier_renderer import diffvgProcess
 import matplotlib.pyplot as plt
 from scipy.spatial import procrustes
 from scipy.linalg import sqrtm

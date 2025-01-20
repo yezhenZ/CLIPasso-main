@@ -18,6 +18,113 @@ from skimage.transform import resize
 from U2Net_.model import U2NET
 
 
+def save_cosine_similarity_heatmap(reg_matrix, folder_path, epoch, name):
+    """绘制余弦相似度矩阵的热力图
+
+    Args:
+        reg_matrix: 余弦相似度矩阵 tensor
+        folder_path: 保存路径
+        epoch: 当前训练轮数
+        name: 文件名
+    """
+    # 设置图像大小和DPI以提高清晰度
+    plt.figure(figsize=(10, 8), dpi=100)
+
+    # 转换为numpy数组
+    cos_sim_matrix_np = reg_matrix.detach().cpu().numpy()
+
+    # 绘制热力图
+    im = plt.imshow(cos_sim_matrix_np, cmap='YlOrRd', interpolation='nearest')
+
+    # 添加数值标注,只标注非零值
+    for i in range(cos_sim_matrix_np.shape[0]):
+        for j in range(cos_sim_matrix_np.shape[1]):
+            if cos_sim_matrix_np[i, j] > 0:
+                plt.text(j, i, f'{cos_sim_matrix_np[i, j]:.2f}',
+                         ha='center', va='center',
+                         color='black' if cos_sim_matrix_np[i, j] < 0.7 else 'white',
+                         fontsize=8)
+
+    # 添加颜色条和标题
+    plt.colorbar(im)
+    plt.title(f'Cosine Similarity Matrix - Epoch {epoch}')
+
+    # 调整布局并保存
+    plt.tight_layout()
+    save_dir = os.path.join(folder_path, f"{epoch}_{name}.png")
+    plt.savefig(save_dir, bbox_inches='tight')
+    plt.clf()
+    plt.close()
+
+
+# 绘制整张图片
+def render_img_rgb_from_renderer(points, renderer,epoch,save_path):
+    """
+    使用renderer渲染完整的草图
+
+    参数:
+        points: 所有曲线的控制点,形状为(batch_size,num_points,2)
+        renderer: 渲染器对象,包含画布大小等参数
+
+    返回:
+        img: 渲染后的RGB图像,形状为(N,C,H,W)
+    """
+    points = points * 224
+
+    paths = []
+    shape_groups = []
+
+    stroke_color = torch.tensor([0.0, 0.0, 0.0, 1.0])
+
+    for i, control_points in enumerate(points):
+        path = pydiffvg.Path(num_control_points=renderer.num_control_points,
+                             points=control_points,
+                             stroke_width=torch.tensor(renderer.width),
+                             is_closed=False)
+        path_group = pydiffvg.ShapeGroup(shape_ids=torch.tensor([i]),
+                                         fill_color=None,
+                                         stroke_color=stroke_color)
+        paths.append(path)
+        shape_groups.append(path_group)
+
+    scene_args = pydiffvg.RenderFunction.serialize_scene( \
+        renderer.canvas_width, renderer.canvas_height, paths, shape_groups)
+
+    # 背景图像
+    background_image = torch.ones(renderer.canvas_height, renderer.canvas_width, 4)
+    background_image[:, :, 0:3] = 1.0  # 设置RGB通道为1，表示白色
+    background_image[:, :, 3] = 1.0  # 设置A通道为1，表示完全不透明background_image,
+    render = pydiffvg.RenderFunction.apply
+    img = render(renderer.canvas_width,  # width
+                 renderer.canvas_height,  # height
+                 2,  # num_samples_x
+                 2,  # num_samples_y
+                 0,  # seed
+                 background_image,
+                 *scene_args)
+
+    opacity = img[:, :, 3:4]
+    img = opacity * img[:, :, :3] + torch.ones(img.shape[0], img.shape[1], 3, device=renderer.device) * (1 - opacity)
+    img = img[:, :, :3]
+    if epoch % 10 == 0:
+        save_dir = os.path.join(save_path, f"{epoch}_out.png")
+        # print(img2.shape)
+        img2 = img.clone().detach().cpu().numpy()
+        # 使用 matplotlib 绘制图像
+        plt.imshow(img2)
+        plt.axis('off')  # 关闭坐标轴
+        plt.savefig(save_dir)
+        plt.clf()
+        plt.close()
+    # Convert img from HWC to NCHW
+    img = img.unsqueeze(0)
+
+    img = img.permute(0, 3, 1, 2).to(renderer.device)  # NHWC -> NCHW
+
+
+
+
+    return img
 def imwrite(img, filename, gamma=2.2, normalize=False, use_wandb=False, wandb_name="", step=0, input_im=None):
     directory = os.path.dirname(filename)
     if directory != '' and not os.path.exists(directory):
